@@ -12,12 +12,14 @@ export interface User {
 }
 
 export interface Branch {
-  id: string;
+  id: string | number;
+  code?: string;
   name: string;
   address: string;
   phone: string;
   email?: string;
   managerName?: string;
+  isActive?: boolean;
   status?: 'active' | 'inactive';
   openingHours?: string;
   totalTables?: number;
