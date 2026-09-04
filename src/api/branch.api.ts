@@ -5,36 +5,42 @@ const BRANCH_STORAGE_KEY = 'rest_branches';
 
 const getDefaultBranches = (): Branch[] => [
   {
-    id: '1',
+    id: 1,
+    code: 'CN01',
     name: 'Chi nhánh Quận 1 (Chính)',
     address: '123 Lê Lợi, P. Bến Thành, Q.1, TP.HCM',
     phone: '028 3824 1234',
     email: 'quan1@restaurant.com',
     managerName: 'Nguyễn Văn Quản Lý',
+    isActive: true,
     status: 'active',
     openingHours: '08:00 - 23:00',
     totalTables: 24,
     createdAt: '2025-01-10T08:00:00Z'
   },
   {
-    id: '2',
+    id: 2,
+    code: 'CN02',
     name: 'Chi nhánh Quận 3',
     address: '456 Nguyễn Thị Minh Khai, Q.3, TP.HCM',
     phone: '028 3930 5678',
     email: 'quan3@restaurant.com',
     managerName: 'Trần Thị Thu Thảo',
+    isActive: true,
     status: 'active',
     openingHours: '09:00 - 22:30',
     totalTables: 18,
     createdAt: '2025-03-15T08:00:00Z'
   },
   {
-    id: '3',
+    id: 3,
+    code: 'CN03',
     name: 'Chi nhánh Quận 7',
     address: '789 Nguyễn Văn Linh, P. Tân Phong, Q.7, TP.HCM',
     phone: '028 5410 9999',
     email: 'quan7@restaurant.com',
     managerName: 'Lê Hoàng Nam',
+    isActive: true,
     status: 'active',
     openingHours: '08:30 - 23:00',
     totalTables: 30,
@@ -42,11 +48,29 @@ const getDefaultBranches = (): Branch[] => [
   }
 ];
 
+export const normalizeBranch = (item: any): Branch => ({
+  id: item.id,
+  code: item.code || (item.id ? `CN${String(item.id).padStart(2, '0')}` : 'CN01'),
+  name: item.name || '',
+  address: item.address || '',
+  phone: item.phone || '',
+  email: item.email || '',
+  managerName: item.managerName || '',
+  isActive: item.isActive !== undefined ? item.isActive : (item.status !== 'inactive'),
+  status: (item.isActive === true || item.status === 'active' || item.isActive === undefined) ? 'active' : 'inactive',
+  openingHours: item.openingHours || '08:00 - 22:30',
+  totalTables: item.totalTables || 20,
+  createdAt: item.createdAt || new Date().toISOString()
+});
+
 export const getStoredBranches = (): Branch[] => {
   const data = localStorage.getItem(BRANCH_STORAGE_KEY);
   if (data) {
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(normalizeBranch);
+      }
     } catch {
       // Fallback
     }
@@ -57,7 +81,7 @@ export const getStoredBranches = (): Branch[] => {
 };
 
 export const saveStoredBranches = (branches: Branch[]) => {
-  localStorage.setItem(BRANCH_STORAGE_KEY, JSON.stringify(branches));
+  localStorage.setItem(BRANCH_STORAGE_KEY, JSON.stringify(branches.map(normalizeBranch)));
 };
 
 /**
@@ -67,11 +91,12 @@ export const fetchBranchesApi = async (): Promise<ApiResponse<Branch[]>> => {
   try {
     const response = await axiosClient.get<any, any>('/branches');
     // Normalize response if wrapped in ApiResponse or returned directly
-    const list: Branch[] = Array.isArray(response)
+    const rawList = Array.isArray(response)
       ? response
-      : response?.data || response?.content || [];
+      : (Array.isArray(response?.data) ? response.data : response?.content || []);
 
-    if (list && list.length > 0) {
+    if (rawList && rawList.length > 0) {
+      const list = rawList.map(normalizeBranch);
       saveStoredBranches(list);
       return {
         success: true,
@@ -97,11 +122,11 @@ export const fetchBranchesApi = async (): Promise<ApiResponse<Branch[]>> => {
 export const getBranchByIdApi = async (id: string | number): Promise<ApiResponse<Branch>> => {
   try {
     const response = await axiosClient.get<any, any>(`/branches/${id}`);
-    const data: Branch = response?.data || response;
-    if (data) {
+    const raw = response?.data || response;
+    if (raw && raw.id) {
       return {
         success: true,
-        data,
+        data: normalizeBranch(raw),
       };
     }
   } catch (error) {
@@ -122,13 +147,28 @@ export const getBranchByIdApi = async (id: string | number): Promise<ApiResponse
 export const createBranchApi = async (
   dto: Partial<Branch>
 ): Promise<ApiResponse<Branch>> => {
-  try {
-    const response = await axiosClient.post<any, any>('/branches', dto);
-    const newBranch: Branch = response?.data || response;
+  const payload = {
+    code: dto.code || undefined,
+    name: dto.name,
+    address: dto.address,
+    phone: dto.phone,
+    isActive: dto.status ? dto.status === 'active' : (dto.isActive !== undefined ? dto.isActive : true)
+  };
 
-    if (newBranch && newBranch.id) {
+  try {
+    const response = await axiosClient.post<any, any>('/branches', payload);
+    const raw: any = response?.data || response;
+
+    if (raw && raw.id) {
+      const newBranch = normalizeBranch({
+        ...raw,
+        email: dto.email,
+        managerName: dto.managerName,
+        openingHours: dto.openingHours,
+        totalTables: dto.totalTables
+      });
       const branches = getStoredBranches();
-      const updated = [...branches, newBranch];
+      const updated = [...branches.filter(b => String(b.id) !== String(newBranch.id)), newBranch];
       saveStoredBranches(updated);
       return {
         success: true,
@@ -138,7 +178,6 @@ export const createBranchApi = async (
     }
   } catch (error: any) {
     console.warn('[Branch API] Create branch API error, falling back locally:', error);
-    // If backend throws error with response message
     if (error.response?.data?.message) {
       throw new Error(error.response.data.message);
     }
@@ -146,18 +185,13 @@ export const createBranchApi = async (
 
   // Local fallback
   const branches = getStoredBranches();
-  const newId = dto.id ? String(dto.id) : String(branches.length + 1);
-  const newBranch: Branch = {
+  const newId = dto.id ? dto.id : branches.length + 1;
+  const newBranch = normalizeBranch({
     ...dto,
     id: newId,
-    name: dto.name || '',
-    address: dto.address || '',
-    phone: dto.phone || '',
-    status: dto.status || 'active',
-    totalTables: dto.totalTables || 15,
-    openingHours: dto.openingHours || '08:00 - 22:30',
+    code: dto.code || `CN${String(newId).padStart(2, '0')}`,
     createdAt: new Date().toISOString(),
-  };
+  });
 
   const updated = [...branches, newBranch];
   saveStoredBranches(updated);
@@ -175,14 +209,29 @@ export const updateBranchApi = async (
   id: string | number,
   dto: Partial<Branch>
 ): Promise<ApiResponse<Branch>> => {
-  try {
-    const response = await axiosClient.put<any, any>(`/branches/${id}`, dto);
-    const updatedBranch: Branch = response?.data || response;
+  const payload = {
+    code: dto.code || undefined,
+    name: dto.name,
+    address: dto.address,
+    phone: dto.phone,
+    isActive: dto.status ? dto.status === 'active' : (dto.isActive !== undefined ? dto.isActive : true)
+  };
 
-    if (updatedBranch) {
+  try {
+    const response = await axiosClient.put<any, any>(`/branches/${id}`, payload);
+    const raw: any = response?.data || response;
+
+    if (raw && raw.id) {
+      const updatedBranch = normalizeBranch({
+        ...raw,
+        email: dto.email,
+        managerName: dto.managerName,
+        openingHours: dto.openingHours,
+        totalTables: dto.totalTables
+      });
       const branches = getStoredBranches();
       const updated = branches.map((b) =>
-        String(b.id) === String(id) ? { ...b, ...updatedBranch } : b
+        String(b.id) === String(id) ? updatedBranch : b
       );
       saveStoredBranches(updated);
       return {
@@ -205,10 +254,10 @@ export const updateBranchApi = async (
     throw new Error(`Không tìm thấy chi nhánh #${id}`);
   }
 
-  const updatedBranch: Branch = {
+  const updatedBranch = normalizeBranch({
     ...branches[index],
     ...dto,
-  };
+  });
   branches[index] = updatedBranch;
   saveStoredBranches(branches);
 
@@ -220,13 +269,16 @@ export const updateBranchApi = async (
 };
 
 /**
- * Delete branch (optional fallback)
+ * Delete branch: DELETE /api/branches/{id}
  */
 export const deleteBranchApi = async (id: string | number): Promise<ApiResponse<boolean>> => {
   try {
     await axiosClient.delete(`/branches/${id}`);
-  } catch (error) {
-    console.warn(`[Branch API] Delete branch #${id} backend call failed, deleting locally`);
+  } catch (error: any) {
+    console.warn(`[Branch API] Delete branch #${id} backend call failed:`, error);
+    if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
   }
 
   const branches = getStoredBranches();

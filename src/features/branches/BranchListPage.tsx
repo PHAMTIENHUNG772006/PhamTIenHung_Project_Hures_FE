@@ -46,6 +46,7 @@ export const BranchListPage: React.FC = () => {
 
   // Form State
   const [formId, setFormId] = useState('');
+  const [formCode, setFormCode] = useState('');
   const [formName, setFormName] = useState('');
   const [formAddress, setFormAddress] = useState('');
   const [formPhone, setFormPhone] = useState('');
@@ -59,6 +60,7 @@ export const BranchListPage: React.FC = () => {
   const openCreateModal = () => {
     setEditingBranch(null);
     setFormId('');
+    setFormCode('');
     setFormName('');
     setFormAddress('');
     setFormPhone('');
@@ -74,6 +76,7 @@ export const BranchListPage: React.FC = () => {
   const openEditModal = (branch: Branch) => {
     setEditingBranch(branch);
     setFormId(String(branch.id));
+    setFormCode(branch.code || '');
     setFormName(branch.name);
     setFormAddress(branch.address);
     setFormPhone(branch.phone);
@@ -114,6 +117,7 @@ export const BranchListPage: React.FC = () => {
       if (editingBranch) {
         // Edit PUT /api/branches/{id}
         await updateBranch(editingBranch.id, {
+          code: formCode.trim() || undefined,
           name: formName.trim(),
           address: formAddress.trim(),
           phone: formPhone.trim(),
@@ -126,6 +130,7 @@ export const BranchListPage: React.FC = () => {
       } else {
         // Create POST /api/branches
         await addBranch({
+          code: formCode.trim() || undefined,
           name: formName.trim(),
           address: formAddress.trim(),
           phone: formPhone.trim(),
@@ -150,7 +155,7 @@ export const BranchListPage: React.FC = () => {
       return;
     }
 
-    if (confirm(`Bạn có chắc chắn muốn xóa chi nhánh "${branch.name}" (ID: ${branch.id})?`)) {
+    if (confirm(`Bạn có chắc chắn muốn xóa chi nhánh "${branch.name}" (${branch.code || branch.id})?`)) {
       try {
         await deleteBranch(branch.id);
       } catch (err: any) {
@@ -169,7 +174,8 @@ export const BranchListPage: React.FC = () => {
   const filteredBranches = branches.filter((branch) => {
     const matchSearch =
       branch.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      branch.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(branch.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (branch.code && branch.code.toLowerCase().includes(searchTerm.toLowerCase())) ||
       branch.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (branch.managerName && branch.managerName.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -378,16 +384,17 @@ export const BranchListPage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span
                       style={{
-                        background: 'rgba(30, 144, 255, 0.1)',
+                        background: 'rgba(30, 144, 255, 0.12)',
                         color: 'var(--accent-color)',
                         padding: '0.2rem 0.6rem',
                         borderRadius: '6px',
                         fontWeight: 700,
                         fontSize: '0.8rem',
-                        letterSpacing: '0.5px'
+                        letterSpacing: '0.5px',
+                        border: '1px solid rgba(30, 144, 255, 0.25)'
                       }}
                     >
-                      {branch.id}
+                      {branch.code || `CN${String(branch.id).padStart(2, '0')}`}
                     </span>
                     <span className={`badge ${isActive ? 'badge-success' : 'badge-danger'}`}>
                       {isActive ? 'Hoạt động' : 'Tạm dừng'}
@@ -572,16 +579,29 @@ export const BranchListPage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Tên Chi Nhánh *</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="VD: Chi nhánh Landmark 81"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              required
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Mã Chi Nhánh</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="VD: CN01"
+                value={formCode}
+                onChange={(e) => setFormCode(e.target.value.toUpperCase())}
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Tên Chi Nhánh *</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="VD: Chi nhánh Landmark 81"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           <div className="form-group" style={{ margin: 0 }}>
