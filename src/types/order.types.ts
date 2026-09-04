@@ -1,5 +1,5 @@
 export type OrderStatus = 'pending' | 'preparing' | 'completed' | 'cancelled';
-export type TableStatus = 'empty' | 'occupied' | 'reserved';
+export type TableStatus = 'empty' | 'occupied' | 'reserved' | 'needs_cleaning';
 
 export interface OrderItem {
   id: string; // product id
@@ -24,12 +24,21 @@ export interface Order {
   branchId: string;
 }
 
+export interface Area {
+  id: number | string;
+  branchId?: number | string;
+  name: string;
+}
+
 export interface Table {
   id: string;
   name: string;
+  tableNumber?: string;
   status: TableStatus;
   capacity: number;
-  zone: 'A' | 'B' | 'VIP' | 'Terrace';
+  areaId?: number | string;
+  areaName?: string;
+  zone?: string;
   currentOrderId?: string;
 }
 
